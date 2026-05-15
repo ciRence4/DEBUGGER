@@ -7,6 +7,12 @@
 
 #include "debugger.h"
 
+#ifdef _WIN32
+    /* already included via debugger.h → windows.h */
+#else
+    #include <sys/ioctl.h>
+#endif
+
 /* ============================================================
    INTRO SEQUENCE
    ============================================================ */
@@ -59,7 +65,6 @@ void intro_sequence(void) {
     int i, j;
     cls();
 
-    /* ASCII title card */
     printf("\n\n");
     printf(C_BYELLOW);
     for (i = 0; i < 56; i++) putchar('#');
@@ -73,7 +78,7 @@ void intro_sequence(void) {
     for (i = 0; i < 56; i++) putchar('#');
     printf(C_RESET "\n\n");
 
-    /* boot scroll effect */
+    /* boot scroll */
     const char *boot[] = {
         "  KERNEL v0.0.1 booting...",
         "  Loading memory segments.............. OK",
@@ -114,7 +119,6 @@ void get_player_name(Player *p) {
     printf("  > ");
     fflush(stdout);
     if (fgets(p->name, sizeof(p->name), stdin)) {
-        /* strip newline */
         int len = (int)strlen(p->name);
         if (len > 0 && p->name[len - 1] == '\n')
             p->name[len - 1] = '\0';
@@ -125,60 +129,52 @@ void get_player_name(Player *p) {
     {
         char buf[128];
         snprintf(buf, sizeof(buf),
-            "%s.[PAUSE]\nGood name for someone who's about to rewrite reality.", p->name);
+            "%s.[PAUSE]\nGood name for someone who's about to rewrite reality.",
+            p->name);
         speak(SP_GUIDE, buf);
     }
 }
 
 /* ============================================================
    EXPLORATION SCREEN
-   Location description + ambient "music" dots
    ============================================================ */
-
 static const char *location_lore[][4] = {
-    /* VARSHADE — THE ROOTWAYS */
     {
         "THE ROOTWAYS",
         "The deepest layer of the filesystem.",
         "Paths branch endlessly. Names float unbound from their values.",
         "Something lurks in the unnamed memory."
     },
-    /* BRANCHWRAITH — THE ASHFIELDS */
     {
         "THE ASHFIELDS",
         "A flat grey expanse where every path forks into two.",
         "True and False. Left and right. The fog makes it hard to tell which.",
         "Choosing the wrong branch here means wandering forever."
     },
-    /* VOIDCALLER — THE CLIFFSHORE */
     {
         "THE CLIFFSHORE",
         "A coastline at the edge of the call stack.",
         "Functions echo into the void and never return.",
         "The sea below has no bottom — just recursion all the way down."
     },
-    /* FORMLESSONE — THE DROWNED DARK */
     {
         "THE DROWNED DARK",
         "A place where structure collapsed.",
         "Fields detached from their records. Types wandering without form.",
         "The data is all here — it just refuses to be organized."
     },
-    /* INDEXSERPENT — THE SUNKEN BASIN */
     {
         "THE SUNKEN BASIN",
         "An ancient array, flooded.",
         "The indices are visible through the water — 0 through N-1.",
         "Something coils at index -1, a place that should not exist."
     },
-    /* NULLFANG — THE VEINPLAINS */
     {
         "THE VEINPLAINS",
         "A landscape of addresses, stretching to every horizon.",
         "Pointers criss-cross the plains like veins.",
         "In the centre: a creature that points to nothing, and bites."
     },
-    /* HYDRAEXCEPTION — THE WORLDROOT */
     {
         "THE WORLDROOT",
         "The origin. The first commit. The undefined behaviour that started it all.",
@@ -191,7 +187,6 @@ void exploration_screen(Boss *b, Player *p) {
     int idx, i, j;
     cls();
 
-    /* find lore row by boss index (order matches init_bosses) */
     idx = p->nodes_cleared;
     if (idx >= NUM_BOSSES) idx = NUM_BOSSES - 1;
 
@@ -204,15 +199,13 @@ void exploration_screen(Boss *b, Player *p) {
     for (i = 0; i < 56; i++) putchar('~');
     printf(C_RESET "\n\n");
 
-    /* ambient scroll */
     for (i = 1; i <= 3; i++) {
         printf(C_DIM "  %s" C_RESET "\n", location_lore[idx][i]);
         SLEEP_MS(600);
     }
     printf("\n");
 
-    /* "ambient music" dots */
-    printf("  " C_DIM "[ ambient: ");
+    printf("  " C_DIM "[ scanning: ");
     for (j = 0; j < 24; j++) {
         static const char notes[] = ". . ~ - * . ~ . - * ~ . ";
         putchar(notes[j % (int)(sizeof(notes) - 1)]);
@@ -222,6 +215,85 @@ void exploration_screen(Boss *b, Player *p) {
     printf(" ]" C_RESET "\n\n");
 
     speak(SP_GUIDE, "I can feel the corruption ahead.\nGet ready.");
+
+    (void)b;
+}
+
+/* ============================================================
+   get_term_width()
+   Gets live terminal width. Falls back to 120.
+   ============================================================ */
+static int get_term_width(void) {
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
+        return (int)(csbi.srWindow.Right - csbi.srWindow.Left + 1);
+#else
+    {
+        struct winsize ws;
+        if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
+            return (int)ws.ws_col;
+    }
+#endif
+    return 120;
+}
+
+/* ============================================================
+   print_art_centered()
+   Centers every row of a boss's ASCII art independently
+   based on the live terminal width.
+
+   Algorithm:
+     1. Strip the common leading-space prefix (min_indent) that
+        is baked into every art row in bosses.c, so it does not
+        stack on top of our centering pad.
+     2. Find max_vis: the widest visible (non-trailing-space)
+        row after stripping min_indent. All rows are anchored to
+        the same left edge so the art looks like one solid block.
+     3. art_pad  = (term_w - max_vis) / 2   — centers the block.
+   ============================================================ */
+static void print_art_centered(Boss *b, int term_w) {
+    int i;
+    int min_indent = 9999;
+    int max_vis    = 0;
+
+    /* Pass 1 — measure */
+    for (i = 0; i < b->art_row_count; i++) {
+        const char *line = b->art[i];
+        int leading = 0;
+        int vis;
+
+        if (line[0] == '\0') continue;
+        while (line[leading] == ' ') leading++;
+        if (line[leading] == '\0') continue;   /* blank row — skip */
+
+        if (leading < min_indent) min_indent = leading;
+
+        vis = (int)strlen(line);
+        while (vis > 0 && line[vis - 1] == ' ') vis--;
+        vis -= leading;
+        if (vis > max_vis) max_vis = vis;
+    }
+    if (min_indent == 9999) min_indent = 0;
+
+    int art_pad = (term_w - max_vis) / 2;
+    if (art_pad < 0) art_pad = 0;
+
+    /* Pass 2 — print */
+    printf("%s", b->art_color);
+    for (i = 0; i < b->art_row_count; i++) {
+        const char *trimmed = b->art[i] + min_indent;
+        int vis_len = (int)strlen(trimmed);
+        int k, col;
+
+        while (vis_len > 0 && trimmed[vis_len - 1] == ' ') vis_len--;
+
+        for (k = 0; k < art_pad; k++) putchar(' ');
+        for (col = 0; col < vis_len; col++) putchar(trimmed[col]);
+        putchar('\n');
+        SLEEP_MS(40);
+    }
+    printf(C_RESET "\n");
 }
 
 /* ============================================================
@@ -232,63 +304,39 @@ void boss_encounter(Boss *b, Player *p) {
     int i;
     cls();
 
-    /* --- get terminal width --- */
-    int term_w = 120; /* safe default */
-#ifdef _WIN32
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
-        term_w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-#endif
-
-    /* --- find the actual max content width of this boss's art --- */
-    int art_w = 0;
-    for (i = 0; i < b->art_row_count; i++) {
-        int len = (int)strlen(b->art[i]);
-        if (len > art_w) art_w = len;
-    }
-
-    /* --- centered left pad for art --- */
-    int art_pad = (term_w - art_w) / 2;
-    if (art_pad < 0) art_pad = 0;
-
-    /* --- centered left pad for the 56-char header/footer borders --- */
-    int border_pad = (term_w - 56) / 2;
+    int term_w      = get_term_width();
+    int border_w    = 56;
+    int border_pad  = (term_w - border_w) / 2;
     if (border_pad < 0) border_pad = 0;
 
-    /* helper macro to print N spaces */
-    #define PAD(n) do { int _p; for(_p=0;_p<(n);_p++) putchar(' '); } while(0)
+    /* helper macro: print N spaces */
+    #define PAD(n) do { int _k; for (_k = 0; _k < (n); _k++) putchar(' '); } while(0)
 
     /* top border */
     printf(C_MAGENTA);
     PAD(border_pad);
-    for (i = 0; i < 56; i++) putchar('*');
+    for (i = 0; i < border_w; i++) putchar('*');
     printf("\n");
     PAD(border_pad);
-    print_centered(b->location, 56);
+    print_centered(b->location, border_w);
     PAD(border_pad);
-    for (i = 0; i < 56; i++) putchar('*');
+    for (i = 0; i < border_w; i++) putchar('*');
     printf(C_RESET "\n\n");
 
-    /* art */
-    printf("%s", b->art_color);
-    for (i = 0; i < b->art_row_count; i++) {
-        PAD(art_pad);
-        printf("%s\n", b->art[i]);
-        SLEEP_MS(40);
-    }
-    printf(C_RESET "\n");
+    /* centered ASCII art */
+    print_art_centered(b, term_w);
 
-    /* bottom border + name */
+    /* bottom border */
     printf(C_MAGENTA);
     PAD(border_pad);
-    for (i = 0; i < 56; i++) putchar('*');
+    for (i = 0; i < border_w; i++) putchar('*');
     printf("\n");
     PAD(border_pad);
-    print_centered(b->name, 56);
+    print_centered(b->name, border_w);
     PAD(border_pad);
-    print_centered(b->topic, 56);
+    print_centered(b->topic, border_w);
     PAD(border_pad);
-    for (i = 0; i < 56; i++) putchar('*');
+    for (i = 0; i < border_w; i++) putchar('*');
     printf(C_RESET "\n");
 
     #undef PAD
@@ -308,10 +356,9 @@ void boss_encounter(Boss *b, Player *p) {
 
 /* ============================================================
    BATTLE
-   3 questions. Wrong answer = -1 heart + log.
+   3 questions. Wrong answer = -1 heart + log to tome.
    Returns 1 if alive, 0 if dead.
    ============================================================ */
-
 static void show_question(Boss *b, int q_idx, Player *p) {
     Question *q = &b->questions[q_idx];
     int i;
@@ -323,7 +370,6 @@ static void show_question(Boss *b, int q_idx, Player *p) {
     for (i = 0; i < 56; i++) putchar('-');
     printf("\n");
 
-    /* print question with mild typewriter */
     {
         const char *text = q->question;
         int j;
@@ -353,7 +399,7 @@ static int get_player_choice(void) {
         printf("  Enter choice (1-4): ");
         fflush(stdout);
         if (fgets(buf, sizeof(buf), stdin)) {
-            choice = atoi(buf) - 1;  /* 0-based */
+            choice = atoi(buf) - 1;
             if (choice < 0 || choice > 3) {
                 printf("  [Invalid — enter 1, 2, 3, or 4]\n");
                 choice = -1;
@@ -374,10 +420,8 @@ int battle(Boss *b, Player *p) {
         choice = get_player_choice();
 
         if (choice == question->correct) {
-            /* --- correct --- */
-            speak(SP_GUIDE, "Correct. The corruption shudders.");
+            speak(SP_GUIDE, "Correct.[PAUSE] The corruption shudders.");
         } else {
-            /* --- wrong --- */
             p->hearts--;
 
             {
@@ -391,21 +435,20 @@ int battle(Boss *b, Player *p) {
                 speak_boss(b->name, buf);
             }
 
-            /* log to tome */
+            /* log to tome of errors */
             {
                 ErrorEntry e;
-                strncpy(e.boss_name,     b->name,                          sizeof(e.boss_name) - 1);
-                strncpy(e.question,      question->question,               sizeof(e.question) - 1);
-                strncpy(e.wrong_answer,  question->choices[choice],        sizeof(e.wrong_answer) - 1);
-                strncpy(e.correct_answer,question->choices[question->correct], sizeof(e.correct_answer) - 1);
-                e.boss_name[sizeof(e.boss_name)-1]         = '\0';
-                e.question[sizeof(e.question)-1]           = '\0';
-                e.wrong_answer[sizeof(e.wrong_answer)-1]   = '\0';
-                e.correct_answer[sizeof(e.correct_answer)-1] = '\0';
+                strncpy(e.boss_name,      b->name,                              sizeof(e.boss_name) - 1);
+                strncpy(e.question,       question->question,                   sizeof(e.question) - 1);
+                strncpy(e.wrong_answer,   question->choices[choice],            sizeof(e.wrong_answer) - 1);
+                strncpy(e.correct_answer, question->choices[question->correct], sizeof(e.correct_answer) - 1);
+                e.boss_name[sizeof(e.boss_name)          - 1] = '\0';
+                e.question[sizeof(e.question)            - 1] = '\0';
+                e.wrong_answer[sizeof(e.wrong_answer)    - 1] = '\0';
+                e.correct_answer[sizeof(e.correct_answer)- 1] = '\0';
                 log_error(&e);
             }
 
-            /* check death mid-battle */
             if (p->hearts <= 0)
                 return 0;
 
@@ -418,10 +461,10 @@ int battle(Boss *b, Player *p) {
         }
     }
 
-    /* all 3 answered — boss defeated */
     {
         char buf[128];
-        snprintf(buf, sizeof(buf), "%s fractures. The node begins to close.", b->name);
+        snprintf(buf, sizeof(buf),
+            "%s fractures. The node begins to close.", b->name);
         speak(SP_NARRATION, buf);
     }
 
@@ -525,4 +568,4 @@ void game_over(Player *p) {
     print_centered("G A M E   O V E R", 56);
     for (i = 0; i < 56; i++) putchar('X');
     printf("\n\n");
-}
+}   

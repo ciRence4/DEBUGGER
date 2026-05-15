@@ -62,7 +62,7 @@
 #define NUM_BOSSES       7
 #define TOME_FILE       "tome_of_errors.txt"
 #define ART_COLS        130
-#define ART_ROWS        24   /* Increased to 24 to hold full boss art safely */
+#define ART_ROWS        40   /* Increased to 40 to hold all boss art safely */
 
 /* ============================================================
    ENUMS

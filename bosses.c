@@ -50,8 +50,8 @@ void init_bosses(Boss bosses[NUM_BOSSES]) {
         "                         *@                                   @  :     ",                                                                                                                         
         };
         int r;
-        bosses[0].art_row_count = 40; bosses[0].art_color = C_MAGENTA;
-        for (r = 0; r < 40; r++)
+        bosses[0].art_row_count = 24; bosses[0].art_color = C_MAGENTA;
+        for (r = 0; r < 24; r++)
             strncpy(bosses[0].art[r], art[r], ART_COLS - 1);
     }
 
@@ -122,8 +122,8 @@ void init_bosses(Boss bosses[NUM_BOSSES]) {
                                                         
         };
         int r;
-        bosses[1].art_row_count = 40; bosses[1].art_color = C_CYAN;
-        for (r = 0; r < 40; r++)
+        bosses[1].art_row_count = 24; bosses[1].art_color = C_CYAN;
+        for (r = 0; r < 24; r++)
             strncpy(bosses[1].art[r], art[r], ART_COLS - 1);
     }
 
@@ -196,8 +196,8 @@ void init_bosses(Boss bosses[NUM_BOSSES]) {
 "                                                                                                                    "
         };
         int r;
-        bosses[2].art_row_count = 40; bosses[2].art_color = C_BLUE;
-        for (r = 0; r < 40; r++)
+        bosses[2].art_row_count = 28; bosses[2].art_color = C_BLUE;
+        for (r = 0; r < 28; r++)
             strncpy(bosses[2].art[r], art[r], ART_COLS - 1);
     }
 
@@ -274,8 +274,8 @@ void init_bosses(Boss bosses[NUM_BOSSES]) {
           "                                              .--.  .::::   :::..:.  .:::..:..:::.-: .   .::.     ",                     
         };
         int r;
-        bosses[3].art_row_count = 40; bosses[3].art_color = C_BMAGENTA;
-        for (r = 0; r < 40; r++)
+        bosses[3].art_row_count = 31; bosses[3].art_color = C_BMAGENTA;
+        for (r = 0; r < 31; r++)
             strncpy(bosses[3].art[r], art[r], ART_COLS - 1);
     }
 
@@ -344,8 +344,8 @@ void init_bosses(Boss bosses[NUM_BOSSES]) {
             
         };
         int r;
-        bosses[4].art_row_count = 40; bosses[4].art_color = C_BGREEN;
-        for (r = 0; r < 40; r++)
+        bosses[4].art_row_count = 22; bosses[4].art_color = C_BGREEN;
+        for (r = 0; r < 22; r++)
             strncpy(bosses[4].art[r], art[r], ART_COLS - 1);
     }
 
@@ -503,8 +503,8 @@ void init_bosses(Boss bosses[NUM_BOSSES]) {
      "                                                   :.             :+-. :      :. ==       .       :.-=.                          "  
         };
         int r;
-        bosses[6].art_row_count = 40; bosses[6].art_color = C_BRED;
-        for (r = 0; r < 40; r++)
+        bosses[6].art_row_count = 35; bosses[6].art_color = C_BRED;
+        for (r = 0; r < 35; r++)
             strncpy(bosses[6].art[r], art[r], ART_COLS - 1);
     }
 
