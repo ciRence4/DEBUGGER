@@ -232,27 +232,66 @@ void boss_encounter(Boss *b, Player *p) {
     int i;
     cls();
 
+    /* --- get terminal width --- */
+    int term_w = 120; /* safe default */
+#ifdef _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi))
+        term_w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+#endif
+
+    /* --- find the actual max content width of this boss's art --- */
+    int art_w = 0;
+    for (i = 0; i < b->art_row_count; i++) {
+        int len = (int)strlen(b->art[i]);
+        if (len > art_w) art_w = len;
+    }
+
+    /* --- centered left pad for art --- */
+    int art_pad = (term_w - art_w) / 2;
+    if (art_pad < 0) art_pad = 0;
+
+    /* --- centered left pad for the 56-char header/footer borders --- */
+    int border_pad = (term_w - 56) / 2;
+    if (border_pad < 0) border_pad = 0;
+
+    /* helper macro to print N spaces */
+    #define PAD(n) do { int _p; for(_p=0;_p<(n);_p++) putchar(' '); } while(0)
+
+    /* top border */
     printf(C_MAGENTA);
+    PAD(border_pad);
     for (i = 0; i < 56; i++) putchar('*');
     printf("\n");
+    PAD(border_pad);
     print_centered(b->location, 56);
+    PAD(border_pad);
     for (i = 0; i < 56; i++) putchar('*');
     printf(C_RESET "\n\n");
 
+    /* art */
     printf("%s", b->art_color);
     for (i = 0; i < b->art_row_count; i++) {
-        printf("  %s\n", b->art[i]);
+        PAD(art_pad);
+        printf("%s\n", b->art[i]);
         SLEEP_MS(40);
     }
     printf(C_RESET "\n");
 
+    /* bottom border + name */
     printf(C_MAGENTA);
+    PAD(border_pad);
     for (i = 0; i < 56; i++) putchar('*');
     printf("\n");
+    PAD(border_pad);
     print_centered(b->name, 56);
+    PAD(border_pad);
     print_centered(b->topic, 56);
+    PAD(border_pad);
     for (i = 0; i < 56; i++) putchar('*');
     printf(C_RESET "\n");
+
+    #undef PAD
 
     speak(SP_NARRATION, "A corruption node awakens.");
 

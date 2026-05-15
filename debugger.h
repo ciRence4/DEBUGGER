@@ -56,12 +56,12 @@
 /* ============================================================
    CONSTANTS
    ============================================================ */
-#define BOX_WIDTH       50
+#define BOX_WIDTH       150
 #define MAX_CHOICES      4
 #define MAX_Q_PER_BOSS   3
 #define NUM_BOSSES       7
 #define TOME_FILE       "tome_of_errors.txt"
-#define ART_COLS        32
+#define ART_COLS        130
 #define ART_ROWS        24   /* Increased to 24 to hold full boss art safely */
 
 /* ============================================================
